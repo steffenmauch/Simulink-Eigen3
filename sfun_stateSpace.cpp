@@ -196,12 +196,13 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     double            *u       = (double*)ssGetInputPortRealSignal(S,0);
 	const real_T      *cpr     = mxGetPr(MATC_PARAM(S));
 	const real_T      *dpr     = mxGetPr(MATD_PARAM(S));
-	int_T             nStates  = ssGetNumContStates(S);
-	int_T             nInputs  = ssGetInputPortWidth(S,0);
-	int_T             nOutputs = ssGetOutputPortWidth(S,0);
+
+#ifndef EIGEN3_VARIANT
 	int_T             i, j;
 	real_T            accum;
- 
+#endif
+
+    
 	UNUSED_ARG(tid); /* not used in single tasking mode */
 
 #ifdef EIGEN3_VARIANT
@@ -224,17 +225,17 @@ static void mdlOutputs(SimStruct *S, int_T tid)
  
 #else
 	/* Matrix Multiply: y = Cx + Du */
-	for (i = 0; i < nOutputs; i++) {
+	for (i = 0; i < (int_T)NOUTPUTS; i++) {
 		accum = 0.0;
  
 		/* Cx */
-		for (j = 0; j < nStates; j++) {
-			accum += cpr[i + nOutputs*j] * x[j];
+		for (j = 0; j < (int_T)NSTATES; j++) {
+			accum += cpr[i + (int_T)NOUTPUTS*j] * x[j];
 		}
  
 		/* Du */
-		for (j = 0; j < nInputs; j++) {
-			accum += dpr[i + nOutputs*j] * u[j];
+		for (j = 0; j < (int_T)NINPUTS; j++) {
+			accum += dpr[i + (int_T)NOUTPUTS*j] * u[j];
 		}
  
 		y[i] = accum;
@@ -254,10 +255,11 @@ static void mdlDerivatives(SimStruct *S)
 	double            *u       = (double*)ssGetInputPortRealSignal(S,0);
 	const real_T      *apr    = mxGetPr(MATA_PARAM(S));
 	const real_T      *bpr    = mxGetPr(MATB_PARAM(S));
-	int_T             nStates = ssGetNumContStates(S);
-	int_T             nInputs  = ssGetInputPortWidth(S,0);
+    
+  #ifndef EIGEN3_VARIANT
 	int_T i, j;
 	real_T accum;
+ #endif
   
  #ifdef EIGEN3_VARIANT
 	double *xx = (double*)&x[0];
@@ -280,17 +282,17 @@ static void mdlDerivatives(SimStruct *S)
  #else
 	/* Matrix Multiply: dx = Ax + Bu */
  
-	for (i = 0; i < nStates; i++) {
+	for (i = 0; i < (int_T)NSTATES; i++) {
 		accum = 0.0;
  
 		/* Ax */
-		for (j = 0; j < nStates; j++) {
-			accum += apr[i + nStates*j] * x[j];
+		for (j = 0; j < (int_T)NSTATES; j++) {
+			accum += apr[i + (int_T)NSTATES*j] * x[j];
 		}
  
 		/* Bu */
-		for (j = 0; j < nInputs; j++) {
-			accum += bpr[i + nStates*j] * u[j];
+		for (j = 0; j < (int_T)NINPUTS; j++) {
+			accum += bpr[i + (int_T)NSTATES*j] * u[j];
 		}
  
 		dx[i] = accum;

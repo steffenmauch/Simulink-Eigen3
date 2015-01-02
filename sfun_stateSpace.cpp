@@ -45,9 +45,6 @@ using namespace Eigen;
  */
 #define EIGEN3_VARIANT
 
-
-#define U(element) (*uPtrs[element])  /* Pointer to input port0 */
-
 #define NUMBER_OF_PARAMS	(5)
 
 #define MATA_PARAM(S)	ssGetSFcnParam(S,0)
@@ -138,6 +135,7 @@ static void mdlInitializeSizes(SimStruct *S)
 	
 	ssSetInputPortWidth(S, 0, NINPUTS);
 	ssSetInputPortDirectFeedThrough(S, 0, 1);
+    ssSetInputPortRequiredContiguous(S, 0, 1);
 	ssSetInputPortDataType( S, 0, SS_DOUBLE );
 
 	if (!ssSetNumOutputPorts(S, 1)) return;
@@ -194,8 +192,8 @@ static void mdlInitializeConditions(SimStruct *S)
 static void mdlOutputs(SimStruct *S, int_T tid)
 {
 	real_T            *y       = ssGetOutputPortRealSignal(S,0);
-	real_T            *x       = ssGetContStates(S);
-	InputRealPtrsType uPtrs    = ssGetInputPortRealSignalPtrs(S,0);
+	real_T            *x       = ssGetContStates(S);   
+    double            *u       = (double*)ssGetInputPortRealSignal(S,0);
 	const real_T      *cpr     = mxGetPr(MATC_PARAM(S));
 	const real_T      *dpr     = mxGetPr(MATD_PARAM(S));
 	int_T             nStates  = ssGetNumContStates(S);
@@ -207,7 +205,6 @@ static void mdlOutputs(SimStruct *S, int_T tid)
 	UNUSED_ARG(tid); /* not used in single tasking mode */
 
 #ifdef EIGEN3_VARIANT
- 	double *u = (double*)uPtrs[0];
 	double *xx = (double*)&x[0];
 	double *C = (double*)&cpr[0];
 	double *D = (double*)&dpr[0];
@@ -237,7 +234,7 @@ static void mdlOutputs(SimStruct *S, int_T tid)
  
 		/* Du */
 		for (j = 0; j < nInputs; j++) {
-			accum += dpr[i + nOutputs*j] * U(j);
+			accum += dpr[i + nOutputs*j] * u[j];
 		}
  
 		y[i] = accum;
@@ -254,7 +251,7 @@ static void mdlDerivatives(SimStruct *S)
 {
 	real_T            *dx     = ssGetdX(S);
 	real_T            *x      = ssGetContStates(S);
-	InputRealPtrsType uPtrs   = ssGetInputPortRealSignalPtrs(S,0);
+	double            *u       = (double*)ssGetInputPortRealSignal(S,0);
 	const real_T      *apr    = mxGetPr(MATA_PARAM(S));
 	const real_T      *bpr    = mxGetPr(MATB_PARAM(S));
 	int_T             nStates = ssGetNumContStates(S);
@@ -263,7 +260,6 @@ static void mdlDerivatives(SimStruct *S)
 	real_T accum;
   
  #ifdef EIGEN3_VARIANT
-	double *u = (double*)uPtrs[0];
 	double *xx = (double*)&x[0];
 	double *A = (double*)&apr[0];
 	double *B = (double*)&bpr[0];
@@ -294,7 +290,7 @@ static void mdlDerivatives(SimStruct *S)
  
 		/* Bu */
 		for (j = 0; j < nInputs; j++) {
-			accum += bpr[i + nStates*j] * U(j);
+			accum += bpr[i + nStates*j] * u[j];
 		}
  
 		dx[i] = accum;

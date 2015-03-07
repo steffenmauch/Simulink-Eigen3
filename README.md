@@ -14,22 +14,18 @@ The following different s-functions are available:
 
 
 s-function for matrix multiplication with Eigen3
-
 (just compile the s-function with mex and run Simulink model, see header)
 
 
 s-function for state-space continuous computation with Eigen3
-
 (just compile the s-function with mex and run Simulink model, see header)
 
 
 s-function for state-space discrete computation with Eigen3
-
 (just compile the s-function with mex and run Simulink model, see header)
 
 
 s-function for calculating based on slopes of an SHWFS the Zernike 
 coefficients till order 28 with Eigen3
-
 (compile the s-function with mex and run the workspace_tbSlopeToZernike.m 
 script)

@@ -57,8 +57,8 @@ static void mdlInitializeSizes(SimStruct *S)
 		return; /* Parameter mismatch reported by the Simulink engine*/
 	}
 	
-	if( !ssSetNumInputPorts(S, 2) ) return;
-	if( !ssSetNumOutputPorts(S,1) ) return;
+	if( !ssSetNumInputPorts(S,  2) ) return;
+	if( !ssSetNumOutputPorts(S, 1) ) return;
 
 	if( !ssSetInputPortDimensionInfo( S, 0, DYNAMIC_DIMENSION) ) return;
 	if( !ssSetInputPortDimensionInfo( S, 1, DYNAMIC_DIMENSION) ) return;
@@ -80,13 +80,31 @@ static void mdlInitializeSizes(SimStruct *S)
     ssSetNumDiscStates(S, 0);
 
     ssSetNumRWork(S, 0);
-    ssSetNumIWork(S, 0);
+    ssSetNumIWork(S, 4);
     ssSetNumPWork(S, 0);
     ssSetNumModes(S, 0);
 
 	/* Take care when specifying exception free code - see sfuntmpl.doc */
 	ssSetOptions(S, SS_OPTION_EXCEPTION_FREE_CODE);
 }
+
+#define MDL_START 
+#if defined(MDL_START)
+static void mdlStart(SimStruct *S)
+{
+	int_T iRows1 = ssGetInputPortDimensions(S, 0)[0];
+    int_T iCols1 = ssGetInputPortDimensions(S, 0)[1];
+    int_T iRows2 = ssGetInputPortDimensions(S, 1)[0];
+    int_T iCols2 = ssGetInputPortDimensions(S, 1)[1];
+    
+	ssGetIWork(S)[0] = iRows1;
+    ssGetIWork(S)[1] = iCols1;
+    ssGetIWork(S)[2] = iRows2;
+    ssGetIWork(S)[3] = iCols2;
+}
+#endif
+
+
     
 
 #if defined(MATLAB_MEX_FILE)
@@ -146,10 +164,12 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     real_T *y = ssGetOutputPortRealSignal(S,0);
     
     MatrixXd resMat;
-    int_T iRows1 = ssGetInputPortDimensions(S, 0)[0];
-    int_T iCols1 = ssGetInputPortDimensions(S, 0)[1];
-    int_T iRows2 = ssGetInputPortDimensions(S, 1)[0];
-    int_T iCols2 = ssGetInputPortDimensions(S, 1)[1];
+    
+    
+    int_T iRows1 = ssGetIWork(S)[0];
+    int_T iCols1 = ssGetIWork(S)[1];
+    int_T iRows2 = ssGetIWork(S)[2];
+    int_T iCols2 = ssGetIWork(S)[3];
     
     MatrixXd mat1 = Map<MatrixXd>(u1, iRows1, iCols1);
     MatrixXd mat2 = Map<MatrixXd>(u2, iRows2, iCols2);  

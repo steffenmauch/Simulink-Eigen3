@@ -156,7 +156,7 @@ static void mdlInitializeSizes(SimStruct *S)
 
 	ssSetNumSampleTimes(S, 1);
 	ssSetNumRWork(S, 0);
-	ssSetNumIWork(S, 0);
+	ssSetNumIWork(S, 3);
 	ssSetNumPWork(S, 0);
 	ssSetNumModes(S, 0);
 	ssSetNumNonsampledZCs(S, 0);
@@ -171,6 +171,7 @@ static void mdlInitializeSampleTimes(SimStruct *S)
 	ssSetOffsetTime(S, 0, 0.0);
 }
 
+
 #define MDL_INITIALIZE_CONDITIONS
 /* Function: mdlInitializeConditions ========================================
  * Abstract:
@@ -179,6 +180,7 @@ static void mdlInitializeSampleTimes(SimStruct *S)
  */
 static void mdlInitializeConditions(SimStruct *S)
 {
+
 	real_T *x0 = ssGetDiscStates(S);
 	int_T  i, nStates;
  
@@ -191,9 +193,12 @@ static void mdlInitializeConditions(SimStruct *S)
 		}
 	} else {
 		for (i = 0; i < nStates; i++) {
-			*x0++ = 0.0;
+			*x0++ = 0.0f;
 		}
 	}
+	ssGetIWork(S)[0] = (int_T)NSTATES;
+	ssGetIWork(S)[1] = (int_T)NINPUTS;
+	ssGetIWork(S)[2] = (int_T)NOUTPUTS;
 }
 
 
@@ -214,7 +219,10 @@ static void mdlOutputs(SimStruct *S, int_T tid)
 	real_T            accum;
 #endif
 
-    
+	int_T nbStates 		= ssGetIWork(S)[0];
+	int_T nbInputs		= ssGetIWork(S)[1];
+	int_T nbOutputs 	= ssGetIWork(S)[2];
+	   
 	UNUSED_ARG(tid); /* not used in single tasking mode */
 
 #ifdef EIGEN3_VARIANT
@@ -224,11 +232,11 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     
 	MatrixXd resMat;
     
-	MatrixXd vec_x = Map<MatrixXd>(xx, NSTATES, 1);
-	MatrixXd vec_u = Map<MatrixXd>(u, NINPUTS, 1);
+	MatrixXd vec_x = Map<MatrixXd>(xx, nbStates, 1);
+	MatrixXd vec_u = Map<MatrixXd>(u, nbInputs, 1);
     
-	MatrixXd mat_C = Map<MatrixXd>(C, NOUTPUTS, NSTATES);
-	MatrixXd mat_D = Map<MatrixXd>(D, NOUTPUTS, NINPUTS);
+	MatrixXd mat_C = Map<MatrixXd>(C, nbOutputs, nbStates);
+	MatrixXd mat_D = Map<MatrixXd>(D, nbOutputs, nbInputs);
 
 	resMat = mat_C*vec_x + mat_D*vec_u;
 	//std::cout << resMat << std::endl;
@@ -237,17 +245,17 @@ static void mdlOutputs(SimStruct *S, int_T tid)
  
 #else
 	/* Matrix Multiply: y = Cx + Du */
-	for (i = 0; i < (int_T)NOUTPUTS; i++) {
+	for (i = 0; i < nbOutputs; i++) {
 		accum = 0.0;
  
 		/* Cx */
-		for (j = 0; j < (int_T)NSTATES; j++) {
-			accum += cpr[i + (int_T)NOUTPUTS*j] * x[j];
+		for (j = 0; j < nbStates; j++) {
+			accum += cpr[i + nbOutputs*j] * x[j];
 		}
  
 		/* Du */
-		for (j = 0; j < (int_T)NINPUTS; j++) {
-			accum += dpr[i + (int_T)NOUTPUTS*j] * u[j];
+		for (j = 0; j < nbInputs; j++) {
+			accum += dpr[i + nbOutputs*j] * u[j];
 		}
  
 		y[i] = accum;
@@ -267,10 +275,14 @@ static void mdlUpdate(SimStruct *S, int_T tid)
 	double            *u      = (double*)ssGetInputPortRealSignal(S,0);
 	const real_T      *apr    = mxGetPr(MATA_PARAM(S));
 	const real_T      *bpr    = mxGetPr(MATB_PARAM(S));
-
+	
+	int_T nbStates 		= ssGetIWork(S)[0];
+	int_T nbInputs		= ssGetIWork(S)[1];
+	
   #ifndef EIGEN3_VARIANT
 	int_T i, j;
 	real_T accum;
+	real_T tempX[nbStates];
  #endif
   
  #ifdef EIGEN3_VARIANT
@@ -280,11 +292,11 @@ static void mdlUpdate(SimStruct *S, int_T tid)
     
 	MatrixXd resMat;
     
-	MatrixXd vec_x = Map<MatrixXd>(xx, NSTATES, 1);
-	MatrixXd vec_u = Map<MatrixXd>(u, NINPUTS, 1);
+	MatrixXd vec_x = Map<MatrixXd>(xx, nbStates, 1);
+	MatrixXd vec_u = Map<MatrixXd>(u, nbInputs, 1);
     
-	MatrixXd mat_A = Map<MatrixXd>(A, NSTATES, NSTATES);
-	MatrixXd mat_B = Map<MatrixXd>(B, NSTATES, NINPUTS);
+	MatrixXd mat_A = Map<MatrixXd>(A, nbStates, nbStates);
+	MatrixXd mat_B = Map<MatrixXd>(B, nbStates, nbInputs);
 
 	resMat = mat_A*vec_x + mat_B*vec_u;
 	//std::cout << resMat << std::endl;
@@ -293,24 +305,23 @@ static void mdlUpdate(SimStruct *S, int_T tid)
  
  #else
 	/* Matrix Multiply: x(k+1) = Ax(k) + Bu(k) */
-	real_T tempX[(int_T)NSTATES];
  
-	for (i = 0; i < (int_T)NSTATES; i++) {
-		accum = 0.0;
+	for (i = 0; i < nbStates; i++) {
+		accum = 0.0f;
  
 		/* Ax */
-		for (j = 0; j < (int_T)NSTATES; j++) {
-			accum += apr[i + (int_T)NSTATES*j] * x[j];
+		for (j = 0; j < nbStates; j++) {
+			accum += apr[i + nbStates*j] * x[j];
 		}
  
 		/* Bu */
-		for (j = 0; j < (int_T)NINPUTS; j++) {
-			accum += bpr[i + (int_T)NSTATES*j] * u[j];
+		for (j = 0; j < nbInputs; j++) {
+			accum += bpr[i + nbStates*j] * u[j];
 		}
  
 		tempX[i] = accum;
 	}
-	for (i = 0; i < (int_T)NSTATES; i++) { 
+	for (i = 0; i < nbStates; i++) { 
 		x[i] = tempX[i];
 	}
 	

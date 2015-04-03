@@ -36,14 +36,12 @@ using namespace Eigen;
 #include <string.h>
 
 
-#define NUMBER_OF_PARAMS	(3)
+#define NUMBER_OF_PARAMS	(2)
 
 #define SLOPES_PARAM        ssGetSFcnParam(S,0)
-#define DECIMAL_PARAM   	ssGetSFcnParam(S,1)
-#define ZERNIKE_PARAM   	ssGetSFcnParam(S,2)
+#define ZERNIKE_PARAM   	ssGetSFcnParam(S,1)
 
 #define SLOPES_LENGTH       ((uint_T) mxGetPr(SLOPES_PARAM)[0])
-#define CNT_OUT             ((uint_T) mxGetPr(DECIMAL_PARAM)[0])
 #define ZERNIKE_CNT         ((uint_T) mxGetPr(ZERNIKE_PARAM)[0])
 
 //#define MEASURE_TIME
@@ -70,15 +68,12 @@ epsilon = std::numeric_limits<typename _Matrix_Type_::Scalar>::epsilon())
     return true;
 }
 
-MatrixXd *dx;
-MatrixXd *dy;
-
-MatrixXd *res;
-
 void arrayofslopefunctionsZern( SimStruct *S, double pupildiam, uint_T maxTerm )
 {
-    dx = new MatrixXd(SLOPES_LENGTH,maxTerm);
-	dy = new MatrixXd(SLOPES_LENGTH,maxTerm);
+	MatrixXd dx = MatrixXd(SLOPES_LENGTH,maxTerm);
+	MatrixXd dy = MatrixXd(SLOPES_LENGTH,maxTerm);
+	
+	MatrixXd *res;
     
     res = new MatrixXd(ZERNIKE_CNT,SLOPES_LENGTH*2);
     
@@ -225,14 +220,14 @@ void arrayofslopefunctionsZern( SimStruct *S, double pupildiam, uint_T maxTerm )
     
     for( k=0; k<SLOPES_LENGTH; k++ ){
         for( l=0; l<maxTerm; l++ ){
-            (*dx)(k,l) = dx_int(k,l);
-            (*dy)(k,l) = dy_int(k,l);
+            dx(k,l) = dx_int(k,l);
+            dy(k,l) = dy_int(k,l);
         }
     }
     
     MatrixXd A = MatrixXd::Zero(SLOPES_LENGTH*2,ZERNIKE_CNT);
-    A.block(0,0,SLOPES_LENGTH,ZERNIKE_CNT) = *dx;
-    A.block(SLOPES_LENGTH,0,SLOPES_LENGTH,ZERNIKE_CNT) = *dy;
+    A.block(0,0,SLOPES_LENGTH,ZERNIKE_CNT) = dx;
+    A.block(SLOPES_LENGTH,0,SLOPES_LENGTH,ZERNIKE_CNT) = dy;
 
 	JacobiSVD<MatrixXd> svd(A, ComputeThinU | ComputeThinV);
     
@@ -250,7 +245,9 @@ void arrayofslopefunctionsZern( SimStruct *S, double pupildiam, uint_T maxTerm )
     
     //printf( "voila! \n" );
     //std::cout << dx_int;
-    //std::cout << *dx;
+    //std::cout << dx;
+    
+	ssGetPWork(S)[0] = (void*)res;
 }
 
 
@@ -276,13 +273,6 @@ static void mdlCheckParameters(SimStruct *S)
 							"\"ZERNIKE_CNT\" must be smaller or equal 28");
 		return;
     }
-
-    /* Check vector */
-	if( mxIsInt32(DECIMAL_PARAM) ){
-		ssSetErrorStatus(S,"parameter to S-function "
-							"\"DECIMAL_PARAM\" must be int32");
-		return;
-	}
 
     /* Check vector */
 	if( mxIsInt32(ZERNIKE_PARAM) ){
@@ -334,7 +324,7 @@ static void mdlInitializeSizes(SimStruct *S)
 	ssSetNumSampleTimes(S, 1);
 	ssSetNumRWork(S, 0);
 	ssSetNumIWork(S, 0);
-	ssSetNumPWork(S, 0);
+	ssSetNumPWork(S, 1);
 	ssSetNumModes(S, 0);
 
 	/* Take care when specifying exception free code - see sfuntmpl.doc */
@@ -369,6 +359,8 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     double *slopeX_d = (double*)ssGetInputPortRealSignal(S,0);
     double *slopeY_d = (double*)ssGetInputPortRealSignal(S,1);
     
+    MatrixXd *res = (MatrixXd*)ssGetPWork(S)[0];
+    
 #ifdef MEASURE_TIME
     int32_t timeS;
     #if defined(MATLAB_MEX_FILE)
@@ -389,7 +381,7 @@ static void mdlOutputs(SimStruct *S, int_T tid)
     slope.block(0,0,SLOPES_LENGTH,1) = slopeX;
     slope.block(SLOPES_LENGTH,0,SLOPES_LENGTH,1) = slopeY;
 
-	VectorXd zernikes = (*res)*slope;
+	VectorXd zernikes = (*res)*slope/2;
 
 #ifdef MEASURE_TIME
     #if defined(MATLAB_MEX_FILE)
@@ -410,11 +402,12 @@ static void mdlOutputs(SimStruct *S, int_T tid)
 }
 
 static void mdlTerminate(SimStruct *S){
-	UNUSED_ARG(S); /* unused input argument */
-    
-    delete(dx);
-	delete(dy);
-    delete(res);
+	UNUSED_ARG(S); /* unused input argument */   
+
+	MatrixXd *res = (MatrixXd*)ssGetPWork(S)[0];
+	res->resize(0,0);
+	delete res;
+	res = NULL; // deallocated properly
             
 }
 

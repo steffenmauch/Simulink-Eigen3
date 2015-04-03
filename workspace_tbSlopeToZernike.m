@@ -20,7 +20,7 @@
 
 slopeX = randn(14*14,1);
 slopeY = randn(14*14,1);
-orderZ = 14;
+orderZ = 28;
 
 % slopeX, slopeY and orderZ are used inside the
 % tbSlopesToZernike.slx Simulink model
@@ -35,7 +35,7 @@ tempY = slopeY;
 zernikeMatlab = fitslopesZern(tempX(:),tempY(:),...
     1, testCoordX(:), testCoordY(:), orderZ);
 
-error = zernikeMatlab - zernike.Data(1,:)'/2;
+error = zernikeMatlab - zernike.Data(1,:)';
 
 maxError = max( abs(error));
 fprintf( 'maxError is %d\n',maxError );
